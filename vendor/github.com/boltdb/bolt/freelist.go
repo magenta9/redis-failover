@@ -1,7 +1,6 @@
 package bolt
 
 import (
-	"fmt"
 	"sort"
 	"unsafe"
 )
@@ -48,14 +47,15 @@ func (f *freelist) pending_count() int {
 
 // all returns a list of all free ids and all pending ids in one sorted list.
 func (f *freelist) all() []pgid {
-	m := make(pgids, 0)
+	ids := make([]pgid, len(f.ids))
+	copy(ids, f.ids)
 
 	for _, list := range f.pending {
-		m = append(m, list...)
+		ids = append(ids, list...)
 	}
 
-	sort.Sort(m)
-	return pgids(f.ids).merge(m)
+	sort.Sort(pgids(ids))
+	return ids
 }
 
 // allocate returns the starting page id of a contiguous list of pages of a given size.
@@ -67,9 +67,7 @@ func (f *freelist) allocate(n int) pgid {
 
 	var initial, previd pgid
 	for i, id := range f.ids {
-		if id <= 1 {
-			panic(fmt.Sprintf("invalid page allocation: %d", id))
-		}
+		_assert(id > 1, "invalid page allocation: %d", id)
 
 		// Reset initial page if this is not contiguous.
 		if previd == 0 || id-previd != 1 {
@@ -105,17 +103,13 @@ func (f *freelist) allocate(n int) pgid {
 // free releases a page and its overflow for a given transaction id.
 // If the page is already free then a panic will occur.
 func (f *freelist) free(txid txid, p *page) {
-	if p.id <= 1 {
-		panic(fmt.Sprintf("cannot free page 0 or 1: %d", p.id))
-	}
+	_assert(p.id > 1, "cannot free page 0 or 1: %d", p.id)
 
 	// Free page and all its overflow pages.
 	var ids = f.pending[txid]
 	for id := p.id; id <= p.id+pgid(p.overflow); id++ {
 		// Verify that page is not already free.
-		if f.cache[id] {
-			panic(fmt.Sprintf("page %d already freed", id))
-		}
+		_assert(!f.cache[id], "page %d already freed", id)
 
 		// Add to the freelist and cache.
 		ids = append(ids, id)
@@ -126,17 +120,15 @@ func (f *freelist) free(txid txid, p *page) {
 
 // release moves all page ids for a transaction id (or older) to the freelist.
 func (f *freelist) release(txid txid) {
-	m := make(pgids, 0)
 	for tid, ids := range f.pending {
 		if tid <= txid {
 			// Move transaction's pending pages to the available freelist.
 			// Don't remove from the cache since the page is still free.
-			m = append(m, ids...)
+			f.ids = append(f.ids, ids...)
 			delete(f.pending, tid)
 		}
 	}
-	sort.Sort(m)
-	f.ids = pgids(f.ids).merge(m)
+	sort.Sort(pgids(f.ids))
 }
 
 // rollback removes the pages from a given pending tx.
@@ -166,16 +158,12 @@ func (f *freelist) read(p *page) {
 	}
 
 	// Copy the list of page ids from the freelist.
-	if count == 0 {
-		f.ids = nil
-	} else {
-		ids := ((*[maxAllocSize]pgid)(unsafe.Pointer(&p.ptr)))[idx:count]
-		f.ids = make([]pgid, len(ids))
-		copy(f.ids, ids)
+	ids := ((*[maxAllocSize]pgid)(unsafe.Pointer(&p.ptr)))[idx:count]
+	f.ids = make([]pgid, len(ids))
+	copy(f.ids, ids)
 
-		// Make sure they're sorted.
-		sort.Sort(pgids(f.ids))
-	}
+	// Make sure they're sorted.
+	sort.Sort(pgids(f.ids))
 
 	// Rebuild the page cache.
 	f.reindex()
@@ -193,9 +181,7 @@ func (f *freelist) write(p *page) error {
 
 	// The page.count can only hold up to 64k elements so if we overflow that
 	// number then we handle it by putting the size in the first element.
-	if len(ids) == 0 {
-		p.count = uint16(len(ids))
-	} else if len(ids) < 0xFFFF {
+	if len(ids) < 0xFFFF {
 		p.count = uint16(len(ids))
 		copy(((*[maxAllocSize]pgid)(unsafe.Pointer(&p.ptr)))[:], ids)
 	} else {
@@ -236,7 +222,7 @@ func (f *freelist) reload(p *page) {
 
 // reindex rebuilds the free cache based on available and pending free lists.
 func (f *freelist) reindex() {
-	f.cache = make(map[pgid]bool, len(f.ids))
+	f.cache = make(map[pgid]bool)
 	for _, id := range f.ids {
 		f.cache[id] = true
 	}
