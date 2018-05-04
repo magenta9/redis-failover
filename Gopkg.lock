@@ -71,16 +71,16 @@
   revision = "0fb14efe8c47ae851c0034ed7a448854d3d34cf3"
 
 [[projects]]
+  branch = "master"
   name = "github.com/hashicorp/raft"
   packages = ["."]
-  revision = "c701e3c2bf359262912f8acbcde116cb04686146"
-  version = "v0.1.0"
+  revision = "a3fb4581fb07b16ecf1c3361580d4bdb17de9d98"
 
 [[projects]]
   branch = "master"
   name = "github.com/magenta9/raft-boltdb"
   packages = ["."]
-  revision = "6e5ba93211eaf8d9a2ad7e41ffad8c6f160f9fe3"
+  revision = "3ba6dbeb53d74e5d96e7b6c5d4db2223661c8259"
 
 [[projects]]
   branch = "master"
@@ -100,6 +100,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "90b76304ffab0a634beb37aaa7a1ebdbf1d446d1f52178425dff872758d44970"
+  inputs-digest = "55c04d1f4a5e026950532f2628c003317fa4a8495dea6bb16ada3376e5c23d9d"
   solver-name = "gps-cdcl"
   solver-version = 1
